@@ -26,6 +26,22 @@ def _month_bounds_utc(month: int, year: int, timezone_name: str):
     return start_local.astimezone(pytz.UTC), end_local.astimezone(pytz.UTC)
 
 
+async def property_belongs_to_tenant(property_id: str, tenant_id: str) -> bool:
+    """
+    Verify a property is owned by the tenant before exposing any of its figures.
+
+    Properties are keyed on (id, tenant_id), so the same id can exist for
+    multiple tenants and must never be resolved by id alone.
+    """
+    await db_pool.initialize()
+    async with db_pool.get_session() as session:
+        result = await session.execute(
+            text("SELECT 1 FROM properties WHERE id = :property_id AND tenant_id = :tenant_id"),
+            {"property_id": property_id, "tenant_id": tenant_id},
+        )
+        return result.fetchone() is not None
+
+
 async def calculate_monthly_revenue(
     property_id: str, tenant_id: str, month: int, year: int
 ) -> Decimal:
